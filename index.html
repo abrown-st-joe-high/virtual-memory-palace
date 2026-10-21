@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VirtualMemoryPalace</title>
+<style>
+:root{--paper:#eef1f4;--ink:#1b2a41;--brass:#9a7b2f;--moss:#4f7260;--rule:#c5ccd6;--card:#fff;--danger:#a63d40;--serif:"Iowan Old Style",Palatino,"Palatino Linotype",Georgia,serif;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:15px/1.45 var(--sans);color:var(--ink);background:var(--paper);display:flex;flex-direction:column}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--card);border:1px solid var(--ink);border-radius:4px;padding:.35rem .7rem;cursor:pointer}
+button:hover{background:var(--ink);color:#fff}
+button[aria-pressed=true]{background:var(--ink);color:#fff}
+button.danger{border-color:var(--danger);color:var(--danger)}
+button.danger:hover{background:var(--danger);color:#fff}
+:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+input,select,textarea{border:1px solid var(--rule);border-radius:4px;padding:.3rem .5rem;background:#fff;width:100%}
+header{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;padding:.6rem 1rem;background:var(--ink);color:#fff}
+header h1{font:700 1.35rem var(--serif);margin:0 .5rem 0 0;letter-spacing:.01em}
+header .grp{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+header input,header select{width:12rem;color:var(--ink)}
+header button{background:transparent;color:#fff;border-color:#8a97ad}
+header button:hover{background:#fff;color:var(--ink)}
+#status{margin-left:auto;font-size:.85rem;color:#cfd6e2}
+#status.err{color:#ffb3b5}
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 440px}
+#planwrap{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--rule)}
+.bar{display:flex;gap:.5rem;align-items:center;padding:.5rem .8rem;border-bottom:1px solid var(--rule);background:#fff}
+.bar .hint{font-size:.85rem;color:#55627a}
+#scroll{flex:1;overflow:auto;position:relative}
+#plan{position:relative;width:1600px;height:1000px;background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:40px 40px;background-color:var(--paper)}
+#links{position:absolute;inset:0;pointer-events:none}
+#links line{stroke:var(--moss);stroke-width:4;stroke-linecap:round}
+.room{position:absolute;width:150px;height:64px;background:var(--card);border:2px solid var(--ink);border-radius:3px;padding:.4rem .6rem;cursor:grab;touch-action:none;user-select:none;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.room strong{font:700 1rem var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room small{color:#55627a}
+.room.sel{border-color:var(--brass);box-shadow:0 0 0 3px rgba(154,123,47,.3)}
+.room.from{border-style:dashed;border-color:var(--moss)}
+.connecting .room{cursor:crosshair}
+.emptyplan{position:absolute;left:40px;top:40px;color:#55627a}
+#side{overflow:auto;padding:1rem;background:#fff;min-height:0}
+#side h2{font:700 1.1rem var(--serif);margin:1.2rem 0 .5rem}
+.empty{color:#55627a}
+.row{display:flex;gap:.5rem;align-items:center}
+.cv{width:100%;aspect-ratio:560/340;border:2px solid var(--ink);border-radius:3px;touch-action:none;cursor:crosshair;background-color:var(--paper);background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:28px 28px}
+.tools{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.5rem 0}
+.tools input[type=color]{width:2.4rem;padding:0;height:2rem}
+.tools input[type=range]{width:6rem;padding:0}
+.peg{border:1px solid var(--rule);border-left:4px solid var(--brass);border-radius:4px;padding:.5rem;margin-bottom:.6rem;display:grid;gap:.4rem;background:#fafbfc}
+.peg .top{display:grid;grid-template-columns:auto 4.5rem 1fr auto;gap:.4rem;align-items:center}
+.grip{cursor:grab;font-size:1.3rem;padding:0 .2rem;user-select:none}
+.peg textarea{resize:vertical;min-height:3.2rem}
+@media(max-width:860px){main{grid-template-columns:1fr;grid-template-rows:55vh auto;overflow:auto}#planwrap{border-right:0;border-bottom:1px solid var(--rule)}header input,header select{width:9rem}#status{margin-left:0;width:100%}}
+</style>
+</head>
+<body>
+<header>
+  <h1>VirtualMemoryPalace</h1>
+  <div class="grp">
+    <select id="palaceSel" aria-label="Choose palace"></select>
+    <input id="palaceName" aria-label="Palace name" placeholder="Palace name">
+    <button id="newP">New palace</button>
+    <button id="delP">Delete palace</button>
+  </div>
+  <div class="grp">
+    <button id="dl">Download</button>
+    <button id="ul">Upload</button>
+    <input id="file" type="file" accept=".json,application/json" hidden>
+  </div>
+  <div id="status" role="status" aria-live="polite"></div>
+</header>
+<main>
+  <section id="planwrap">
+    <div class="bar">
+      <button id="addRoom">Add room</button>
+      <button id="connect" aria-pressed="false">Connect rooms</button>
+      <span class="hint" id="hint">Drag rooms to arrange them.</span>
+    </div>
+    <div id="scroll"><div id="plan"><svg id="links" width="1600" height="1000"></svg></div></div>
+  </section>
+  <aside id="side" aria-label="Room editor"></aside>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const KEY="vmp.palaces",CUR="vmp.current",PW=1600,PH=1000,RW=150,RH=64;
+function h(t,a={},...k){const e=document.createElement(t);for(const[x,v]of Object.entries(a)){if(x==="on")for(const[ev,fn]of Object.entries(v))e.addEventListener(ev,fn);else if(x in e)e[x]=v;else e.setAttribute(x,v)}e.append(...k);return e}
+const uid=()=>Math.random().toString(36).slice(2,9);
+let palaces={};try{palaces=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){}
+const mk=n=>({id:uid(),name:n||"Untitled palace",rooms:[],links:[]});
+let P=palaces[localStorage.getItem(CUR)]||Object.values(palaces)[0]||mk();
+let sel=null,connecting=false,connectFrom=null,tool="pen",color="#1b2a41",size=4,cv,ctx,undo=[],timer;
+const plan=$("#plan"),svg=$("#links");
+const room=id=>P.rooms.find(r=>r.id===id);
+
+function status(m,err){const s=$("#status");s.textContent=m;s.className=err?"err":""}
+function save(){clearTimeout(timer);palaces[P.id]=P;try{localStorage.setItem(KEY,JSON.stringify(palaces));localStorage.setItem(CUR,P.id);status("Saved in this browser")}catch(e){status("Browser storage is full. Download this palace to keep it.",1)}}
+function saveSoon(){clearTimeout(timer);timer=setTimeout(save,300)}
+
+/* palace bar */
+function renderBar(){
+  const s=$("#palaceSel");s.replaceChildren(...Object.values(palaces).map(p=>h("option",{value:p.id,textContent:p.name||"Untitled palace",selected:p.id===P.id})));
+  $("#palaceName").value=P.name;
+}
+$("#palaceSel").onchange=e=>{save();P=palaces[e.target.value];sel=null;connectFrom=null;renderAll()};
+$("#palaceName").oninput=e=>{P.name=e.target.value;const o=$("#palaceSel").selectedOptions[0];if(o)o.textContent=P.name||"Untitled palace";saveSoon()};
+$("#newP").onclick=()=>{save();P=mk();sel=null;connectFrom=null;save();renderAll();$("#palaceName").select()};
+$("#delP").onclick=()=>{if(!confirm("Delete the palace "+(P.name||"Untitled palace")+"? This cannot be undone."))return;delete palaces[P.id];P=Object.values(palaces)[0]||mk();sel=null;save();renderAll()};
+
+/* download / upload */
+const stamp=()=>{const d=new Date(),p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"_"+p(d.getHours())+"-"+p(d.getMinutes())+"-"+p(d.getSeconds())};
+$("#dl").onclick=()=>{
+  const nm=(P.name||"palace").replace(/[^\w-]+/g,"_").replace(/^_+|_+$/g,"")||"palace";
+  const f="VirtualMemoryPalace_"+nm+"_"+stamp()+".json";
+  const a=h("a",{href:URL.createObjectURL(new Blob([JSON.stringify({app:"VirtualMemoryPalace",version:1,palace:P},null,2)],{type:"application/json"})),download:f});
+  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);status("Downloaded "+f);
+};
+$("#ul").onclick=()=>$("#file").click();
+$("#file").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{
+    const j=JSON.parse(await f.text()),p=j.palace||j;
+    if(!Array.isArray(p.rooms))throw 0;
+    const n=mk(p.name);
+    n.rooms=p.rooms.map(r=>({id:String(r.id||uid()),name:String(r.name||""),x:+r.x||0,y:+r.y||0,draw:typeof r.draw==="string"&&r.draw.startsWith("data:image/")?r.draw:"",pegs:(Array.isArray(r.pegs)?r.pegs:[]).map(g=>({id:uid(),name:String(g.name||""),img:String(g.img||""),num:+g.num||0,notes:String(g.notes||"")}))}));
+    const ids=new Set(n.rooms.map(r=>r.id));
+    n.links=(Array.isArray(p.links)?p.links:[]).filter(l=>Array.isArray(l)&&ids.has(l[0])&&ids.has(l[1]));
+    save();P=n;sel=null;save();renderAll();status("Uploaded "+f.name+" as a new palace");
+  }catch(err){status("That file is not a VirtualMemoryPalace file.",1)}
+};
+
+/* plan */
+function renderPlan(){
+  plan.querySelectorAll(".room,.emptyplan").forEach(e=>e.remove());
+  if(!P.rooms.length)plan.append(h("p",{className:"emptyplan",textContent:"No rooms yet. Choose Add room to place the first one."}));
+  P.rooms.forEach(r=>{
+    const e=h("div",{id:"r"+r.id,tabIndex:0},h("strong",{textContent:r.name||"Unnamed room"}),h("small",{textContent:r.pegs.length+(r.pegs.length===1?" peg":" pegs")}));
+    e.style.left=r.x+"px";e.style.top=r.y+"px";
+    e.addEventListener("pointerdown",ev=>down(ev,r,e));
+    e.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();connecting?pick(r):choose(r.id)}});
+    plan.append(e);
+  });
+  mark();drawLinks();
+}
+function mark(){P.rooms.forEach(r=>{const e=$("#r"+r.id);if(e)e.className="room"+(r.id===sel?" sel":"")+(r.id===connectFrom?" from":"")})}
+function drawLinks(){
+  svg.replaceChildren();
+  P.links.forEach(([a,b])=>{const A=room(a),B=room(b);if(!A||!B)return;
+    const l=document.createElementNS("http://www.w3.org/2000/svg","line");
+    l.setAttribute("x1",A.x+RW/2);l.setAttribute("y1",A.y+RH/2);l.setAttribute("x2",B.x+RW/2);l.setAttribute("y2",B.y+RH/2);svg.append(l)});
+}
+function choose(id){if(sel===id)return;sel=id;mark();renderSide()}
+function down(ev,r,e){
+  if(ev.button)return;
+  if(connecting){pick(r);return}
+  choose(r.id);
+  const sx=ev.clientX,sy=ev.clientY,ox=r.x,oy=r.y;e.setPointerCapture(ev.pointerId);
+  const mv=m=>{r.x=Math.max(0,Math.min(PW-RW,ox+m.clientX-sx));r.y=Math.max(0,Math.min(PH-RH,oy+m.clientY-sy));e.style.left=r.x+"px";e.style.top=r.y+"px";drawLinks()};
+  const up=()=>{e.removeEventListener("pointermove",mv);e.removeEventListener("pointerup",up);e.removeEventListener("pointercancel",up);saveSoon()};
+  e.addEventListener("pointermove",mv);e.addEventListener("pointerup",up);e.addEventListener("pointercancel",up);
+}
+function pick(r){
+  if(!connectFrom){connectFrom=r.id;$("#hint").textContent="Now pick the room to connect it to.";mark();return}
+  if(connectFrom===r.id){connectFrom=null;$("#hint").textContent="Pick the first room.";mark();return}
+  const i=P.links.findIndex(l=>l.includes(connectFrom)&&l.includes(r.id));
+  if(i>=0){P.links.splice(i,1);status("Connection removed")}else{P.links.push([connectFrom,r.id]);status("Rooms connected")}
+  connectFrom=null;$("#hint").textContent="Pick the first room. Picking a connected pair again removes the connection.";mark();drawLinks();saveSoon();
+}
+$("#connect").onclick=e=>{
+  connecting=!connecting;connectFrom=null;e.target.setAttribute("aria-pressed",connecting);plan.classList.toggle("connecting",connecting);
+  $("#hint").textContent=connecting?"Pick the first room. Picking a connected pair again removes the connection.":"Drag rooms to arrange them.";mark();
+};
+$("#addRoom").onclick=()=>{
+  const n=P.rooms.length,r={id:uid(),name:"Room "+(n+1),x:40+(n%8)*180,y:40+Math.floor(n/8)*110,pegs:[],draw:""};
+  P.rooms.push(r);sel=r.id;renderPlan();renderSide();saveSoon();
+  const i=$("#roomName");if(i){i.focus();i.select()}
+};
+
+/* side panel */
+function renderSide(){
+  const s=$("#side");s.replaceChildren();cv=null;
+  const r=room(sel);
+  if(!r){s.append(h("p",{className:"empty",textContent:"Select a room on the plan to edit it, or add a room to begin."}));return}
+  s.append(
+    h("div",{className:"row"},
+      h("input",{id:"roomName",value:r.name,ariaLabel:"Room name",on:{input:e=>{r.name=e.target.value;const t=$("#r"+r.id+" strong");if(t)t.textContent=r.name||"Unnamed room";saveSoon()}}}),
+      h("button",{className:"danger",textContent:"Delete room",on:{click:()=>{if(!confirm("Delete "+(r.name||"this room")+" and its pegs?"))return;P.rooms=P.rooms.filter(x=>x!==r);P.links=P.links.filter(l=>!l.includes(r.id));sel=null;connectFrom=null;renderPlan();renderSide();save()}}})),
+    h("h2",{textContent:"Room sketch"}));
+  setupCanvas(r);
+  const tb=h("div",{className:"tools"});
+  ["pen","line","rect","oval","eraser"].forEach(t=>tb.append(h("button",{textContent:{pen:"Pen",line:"Line",rect:"Rectangle",oval:"Oval",eraser:"Eraser"}[t],"aria-pressed":tool===t,on:{click:e=>{tool=t;tb.querySelectorAll("button[aria-pressed]").forEach(b=>b.setAttribute("aria-pressed",b===e.target))}}})));
+  tb.append(
+    h("input",{type:"color",value:color,ariaLabel:"Drawing color",on:{input:e=>color=e.target.value}}),
+    h("input",{type:"range",min:1,max:24,value:size,ariaLabel:"Brush size",on:{input:e=>size=+e.target.value}}),
+    h("button",{textContent:"Undo",on:{click:()=>{const u=undo.pop();if(u){ctx.putImageData(u,0,0);r.draw=cv.toDataURL();saveSoon()}}}}),
+    h("button",{textContent:"Clear",on:{click:()=>{undo.push(ctx.getImageData(0,0,cv.width,cv.height));ctx.clearRect(0,0,cv.width,cv.height);r.draw="";saveSoon()}}}));
+  s.append(tb,cv,h("h2",{textContent:"Pegs"}));
+  const box=h("div");
+  s.append(h("div",{className:"row"},
+    h("button",{textContent:"Add peg",on:{click:()=>{let n=1;const u=new Set(r.pegs.map(p=>p.num));while(u.has(n))n++;r.pegs.push({id:uid(),name:"",img:"",num:n,notes:""});pegs(r,box);saveSoon();renderPlan();const f=box.querySelector(".peg:last-child .nm");if(f)f.focus()}}}),
+    h("button",{textContent:"Sort by number",on:{click:()=>{r.pegs.sort((a,b)=>a.num-b.num);pegs(r,box);saveSoon()}}})),box);
+  pegs(r,box);
+}
+function setupCanvas(r){
+  cv=h("canvas",{width:560,height:340,className:"cv"});ctx=cv.getContext("2d");ctx.lineCap="round";ctx.lineJoin="round";undo=[];
+  if(r.draw){const i=new Image();i.onload=()=>ctx.drawImage(i,0,0);i.src=r.draw}
+  let d=false,sx,sy,lx,ly,snap;
+  const pt=e=>{const b=cv.getBoundingClientRect();return[(e.clientX-b.left)*cv.width/b.width,(e.clientY-b.top)*cv.height/b.height]};
+  const style=()=>{ctx.strokeStyle=color;ctx.lineWidth=tool==="eraser"?size*3:size;ctx.globalCompositeOperation=tool==="eraser"?"destination-out":"source-over"};
+  const seg=(a,b,c,e)=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,e);ctx.stroke()};
+  cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);d=true;[sx,sy]=[lx,ly]=pt(e);snap=ctx.getImageData(0,0,cv.width,cv.height);undo.push(snap);if(undo.length>20)undo.shift();style();if(tool==="pen"||tool==="eraser")seg(sx,sy,sx,sy)};
+  cv.onpointermove=e=>{if(!d)return;const[x,y]=pt(e);
+    if(tool==="pen"||tool==="eraser"){seg(lx,ly,x,y);lx=x;ly=y;return}
+    ctx.putImageData(snap,0,0);style();ctx.beginPath();
+    if(tool==="line"){ctx.moveTo(sx,sy);ctx.lineTo(x,y)}
+    else if(tool==="rect")ctx.rect(sx,sy,x-sx,y-sy);
+    else ctx.ellipse((sx+x)/2,(sy+y)/2,Math.abs(x-sx)/2,Math.abs(y-sy)/2,0,0,Math.PI*2);
+    ctx.stroke()};
+  cv.onpointerup=cv.onpointercancel=()=>{if(!d)return;d=false;ctx.globalCompositeOperation="source-over";r.draw=cv.toDataURL();saveSoon()};
+}
+
+/* pegs */
+function pegs(r,box){
+  box.replaceChildren();let drag=-1;
+  if(!r.pegs.length)box.append(h("p",{className:"empty",textContent:"No pegs in this room yet."}));
+  r.pegs.forEach((p,i)=>{
+    const c=h("div",{className:"peg"});
+    const grip=h("span",{className:"grip",title:"Drag to reorder",textContent:"\u283F",on:{mousedown:()=>c.draggable=true}});
+    c.addEventListener("dragstart",e=>{drag=i;e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",String(i))});
+    c.addEventListener("dragend",()=>c.draggable=false);
+    c.addEventListener("dragover",e=>{if(drag>=0)e.preventDefault()});
+    c.addEventListener("drop",e=>{e.preventDefault();if(drag<0||drag===i)return;const[m]=r.pegs.splice(drag,1);r.pegs.splice(i,0,m);pegs(r,box);saveSoon()});
+    const num=h("input",{type:"number",min:0,step:1,value:p.num,ariaLabel:"Peg number",on:{change:()=>{
+      const v=Number(num.value);
+      if(num.value===""||!Number.isInteger(v)||v<0){num.value=p.num;status("Peg numbers must be whole numbers, 0 or higher.",1);return}
+      if(r.pegs.some(q=>q!==p&&q.num===v)){num.value=p.num;status("Peg number "+v+" is already used in this room.",1);return}
+      p.num=v;saveSoon()}}});
+    c.append(
+      h("div",{className:"top"},grip,num,
+        h("input",{className:"nm",value:p.name,placeholder:"Peg name",ariaLabel:"Peg name",on:{input:e=>{p.name=e.target.value;saveSoon()}}}),
+        h("button",{className:"danger",textContent:"Delete",ariaLabel:"Delete peg",on:{click:()=>{r.pegs.splice(i,1);pegs(r,box);saveSoon();renderPlan()}}})),
+      h("input",{value:p.img,placeholder:"Image descriptor (what to picture)",ariaLabel:"Image descriptor",on:{input:e=>{p.img=e.target.value;saveSoon()}}}),
+      h("textarea",{value:p.notes,placeholder:"Notes",ariaLabel:"Notes",on:{input:e=>{p.notes=e.target.value;saveSoon()}}}));
+    box.append(c);
+  });
+}
+
+function renderAll(){renderBar();renderPlan();renderSide()}
+palaces[P.id]=P;renderAll();save();status("Ready");
+window.addEventListener("beforeunload",()=>{try{save()}catch(e){}});
+</script>
+</body>
+</html>
