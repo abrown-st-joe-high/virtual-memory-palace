@@ -33,7 +33,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 440px}
 #plan{position:relative;width:1600px;height:1000px;background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:40px 40px;background-color:var(--paper)}
 #links{position:absolute;inset:0;pointer-events:none}
 #links line{stroke:var(--moss);stroke-width:4;stroke-linecap:round}
-.room{position:absolute;width:150px;height:64px;background:var(--card);border:2px solid var(--ink);border-radius:3px;padding:.4rem .6rem;cursor:grab;touch-action:none;user-select:none;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.room{position:absolute;background:var(--card);border:2px solid var(--ink);border-radius:3px;padding:.4rem .6rem;cursor:grab;touch-action:none;user-select:none;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
 .room strong{font:700 1rem var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .room small{color:#55627a}
 .room.sel{border-color:var(--brass);box-shadow:0 0 0 3px rgba(154,123,47,.3)}
@@ -44,14 +44,22 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 440px}
 #side h2{font:700 1.1rem var(--serif);margin:1.2rem 0 .5rem}
 .empty{color:#55627a}
 .row{display:flex;gap:.5rem;align-items:center}
-.cv{width:100%;aspect-ratio:560/340;border:2px solid var(--ink);border-radius:3px;touch-action:none;cursor:crosshair;background-color:var(--paper);background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:28px 28px}
+.cv{display:block;width:100%;height:auto;border:2px solid var(--ink);border-radius:3px;touch-action:none;cursor:crosshair;background-color:var(--paper);background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:28px 28px}
 .tools{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.5rem 0}
 .tools input[type=color]{width:2.4rem;padding:0;height:2rem}
 .tools input[type=range]{width:6rem;padding:0}
 .peg{border:1px solid var(--rule);border-left:4px solid var(--brass);border-radius:4px;padding:.5rem;margin-bottom:.6rem;display:grid;gap:.4rem;background:#fafbfc}
-.peg .top{display:grid;grid-template-columns:auto 4.5rem 1fr auto;gap:.4rem;align-items:center}
+.peg .top{display:grid;grid-template-columns:auto auto 4.5rem 1fr auto;gap:.4rem;align-items:center}
 .grip{cursor:grab;font-size:1.3rem;padding:0 .2rem;user-select:none}
 .peg textarea{resize:vertical;min-height:3.2rem}
+.stage{position:relative}
+.mk{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;background:var(--brass);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font:700 .75rem var(--sans);cursor:grab;touch-action:none;user-select:none}
+.mk:active{cursor:grabbing}
+.size{margin-top:.6rem}.size label{display:flex;gap:.4rem;align-items:center;flex:1}.size input{width:5rem}
+.pegbar{flex-wrap:wrap}
+.peg .more{display:grid;gap:.4rem}.peg.closed .more{display:none}
+.peg.hl{outline:3px solid var(--brass)}
+.peg .top button:not(.danger){padding:.2rem .5rem}
 @media(max-width:860px){main{grid-template-columns:1fr;grid-template-rows:55vh auto;overflow:auto}#planwrap{border-right:0;border-bottom:1px solid var(--rule)}header input,header select{width:9rem}#status{margin-left:0;width:100%}}
 </style>
 </head>
@@ -84,13 +92,20 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 440px}
 </main>
 <script>
 const $=s=>document.querySelector(s);
-const KEY="vmp.palaces",CUR="vmp.current",PW=1600,PH=1000,RW=150,RH=64;
+const KEY="vmp.palaces",CUR="vmp.current",PW=1600,PH=1000;
 function h(t,a={},...k){const e=document.createElement(t);for(const[x,v]of Object.entries(a)){if(x==="on")for(const[ev,fn]of Object.entries(v))e.addEventListener(ev,fn);else if(x in e)e[x]=v;else e.setAttribute(x,v)}e.append(...k);return e}
 const uid=()=>Math.random().toString(36).slice(2,9);
 let palaces={};try{palaces=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){}
 const mk=n=>({id:uid(),name:n||"Untitled palace",rooms:[],links:[]});
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+function norm(r){
+  r.w=clamp(+r.w||280,160,600);r.h=clamp(+r.h||170,100,400);r.pegs=r.pegs||[];
+  const f=v=>(v==null||v===""||!Number.isFinite(+v))?.5:clamp(+v,0,1);
+  r.pegs.forEach(p=>{p.id=p.id||uid();p.x=f(p.x);p.y=f(p.y);p.collapsed=!!p.collapsed});
+  return r}
+Object.values(palaces).forEach(p=>(p.rooms||[]).forEach(norm));
 let P=palaces[localStorage.getItem(CUR)]||Object.values(palaces)[0]||mk();
-let sel=null,connecting=false,connectFrom=null,tool="pen",color="#1b2a41",size=4,cv,ctx,undo=[],timer;
+let sel=null,connecting=false,connectFrom=null,tool="pen",color="#1b2a41",size=4,cv,ctx,undo=[],timer,stage,pegBox,curRoom;
 const plan=$("#plan"),svg=$("#links");
 const room=id=>P.rooms.find(r=>r.id===id);
 
@@ -123,8 +138,8 @@ $("#file").onchange=async e=>{
     const j=JSON.parse(await f.text()),p=j.palace||j;
     if(!Array.isArray(p.rooms))throw 0;
     const n=mk(p.name);
-    n.rooms=p.rooms.map(r=>({id:String(r.id||uid()),name:String(r.name||""),x:+r.x||0,y:+r.y||0,draw:typeof r.draw==="string"&&r.draw.startsWith("data:image/")?r.draw:"",pegs:(Array.isArray(r.pegs)?r.pegs:[]).map(g=>({id:uid(),name:String(g.name||""),img:String(g.img||""),num:+g.num||0,notes:String(g.notes||"")}))}));
-    const ids=new Set(n.rooms.map(r=>r.id));
+    n.rooms=p.rooms.map(r=>({id:String(r.id||uid()),name:String(r.name||""),x:+r.x||0,y:+r.y||0,w:+r.w,h:+r.h,draw:typeof r.draw==="string"&&r.draw.startsWith("data:image/")?r.draw:"",pegs:(Array.isArray(r.pegs)?r.pegs:[]).map(g=>({id:uid(),name:String(g.name||""),img:String(g.img||""),num:+g.num||0,notes:String(g.notes||""),x:g.x,y:g.y,collapsed:g.collapsed}))}));
+    n.rooms.forEach(norm);const ids=new Set(n.rooms.map(r=>r.id));
     n.links=(Array.isArray(p.links)?p.links:[]).filter(l=>Array.isArray(l)&&ids.has(l[0])&&ids.has(l[1]));
     save();P=n;sel=null;save();renderAll();status("Uploaded "+f.name+" as a new palace");
   }catch(err){status("That file is not a VirtualMemoryPalace file.",1)}
@@ -136,7 +151,7 @@ function renderPlan(){
   if(!P.rooms.length)plan.append(h("p",{className:"emptyplan",textContent:"No rooms yet. Choose Add room to place the first one."}));
   P.rooms.forEach(r=>{
     const e=h("div",{id:"r"+r.id,tabIndex:0},h("strong",{textContent:r.name||"Unnamed room"}),h("small",{textContent:r.pegs.length+(r.pegs.length===1?" peg":" pegs")}));
-    e.style.left=r.x+"px";e.style.top=r.y+"px";
+    e.style.left=r.x+"px";e.style.top=r.y+"px";e.style.width=r.w/2+"px";e.style.height=r.h/2+"px";
     e.addEventListener("pointerdown",ev=>down(ev,r,e));
     e.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();connecting?pick(r):choose(r.id)}});
     plan.append(e);
@@ -148,7 +163,7 @@ function drawLinks(){
   svg.replaceChildren();
   P.links.forEach(([a,b])=>{const A=room(a),B=room(b);if(!A||!B)return;
     const l=document.createElementNS("http://www.w3.org/2000/svg","line");
-    l.setAttribute("x1",A.x+RW/2);l.setAttribute("y1",A.y+RH/2);l.setAttribute("x2",B.x+RW/2);l.setAttribute("y2",B.y+RH/2);svg.append(l)});
+    l.setAttribute("x1",A.x+A.w/4);l.setAttribute("y1",A.y+A.h/4);l.setAttribute("x2",B.x+B.w/4);l.setAttribute("y2",B.y+B.h/4);svg.append(l)});
 }
 function choose(id){if(sel===id)return;sel=id;mark();renderSide()}
 function down(ev,r,e){
@@ -156,7 +171,7 @@ function down(ev,r,e){
   if(connecting){pick(r);return}
   choose(r.id);
   const sx=ev.clientX,sy=ev.clientY,ox=r.x,oy=r.y;e.setPointerCapture(ev.pointerId);
-  const mv=m=>{r.x=Math.max(0,Math.min(PW-RW,ox+m.clientX-sx));r.y=Math.max(0,Math.min(PH-RH,oy+m.clientY-sy));e.style.left=r.x+"px";e.style.top=r.y+"px";drawLinks()};
+  const mv=m=>{r.x=Math.max(0,Math.min(PW-r.w/2,ox+m.clientX-sx));r.y=Math.max(0,Math.min(PH-r.h/2,oy+m.clientY-sy));e.style.left=r.x+"px";e.style.top=r.y+"px";drawLinks()};
   const up=()=>{e.removeEventListener("pointermove",mv);e.removeEventListener("pointerup",up);e.removeEventListener("pointercancel",up);saveSoon()};
   e.addEventListener("pointermove",mv);e.addEventListener("pointerup",up);e.addEventListener("pointercancel",up);
 }
@@ -172,20 +187,21 @@ $("#connect").onclick=e=>{
   $("#hint").textContent=connecting?"Pick the first room. Picking a connected pair again removes the connection.":"Drag rooms to arrange them.";mark();
 };
 $("#addRoom").onclick=()=>{
-  const n=P.rooms.length,r={id:uid(),name:"Room "+(n+1),x:40+(n%8)*180,y:40+Math.floor(n/8)*110,pegs:[],draw:""};
+  const n=P.rooms.length,r={id:uid(),name:"Room "+(n+1),x:40+(n%8)*180,y:40+Math.floor(n/8)*110,w:280,h:170,pegs:[],draw:""};
   P.rooms.push(r);sel=r.id;renderPlan();renderSide();saveSoon();
   const i=$("#roomName");if(i){i.focus();i.select()}
 };
 
 /* side panel */
 function renderSide(){
-  const s=$("#side");s.replaceChildren();cv=null;
+  const s=$("#side");s.replaceChildren();cv=stage=pegBox=curRoom=null;
   const r=room(sel);
   if(!r){s.append(h("p",{className:"empty",textContent:"Select a room on the plan to edit it, or add a room to begin."}));return}
   s.append(
     h("div",{className:"row"},
       h("input",{id:"roomName",value:r.name,ariaLabel:"Room name",on:{input:e=>{r.name=e.target.value;const t=$("#r"+r.id+" strong");if(t)t.textContent=r.name||"Unnamed room";saveSoon()}}}),
       h("button",{className:"danger",textContent:"Delete room",on:{click:()=>{if(!confirm("Delete "+(r.name||"this room")+" and its pegs?"))return;P.rooms=P.rooms.filter(x=>x!==r);P.links=P.links.filter(l=>!l.includes(r.id));sel=null;connectFrom=null;renderPlan();renderSide();save()}}})),
+    h("div",{className:"row size"},sizeIn("Width",r,"w",160,600),sizeIn("Height",r,"h",100,400)),
     h("h2",{textContent:"Room sketch"}));
   setupCanvas(r);
   const tb=h("div",{className:"tools"});
@@ -195,16 +211,49 @@ function renderSide(){
     h("input",{type:"range",min:1,max:24,value:size,ariaLabel:"Brush size",on:{input:e=>size=+e.target.value}}),
     h("button",{textContent:"Undo",on:{click:()=>{const u=undo.pop();if(u){ctx.putImageData(u,0,0);r.draw=cv.toDataURL();saveSoon()}}}}),
     h("button",{textContent:"Clear",on:{click:()=>{undo.push(ctx.getImageData(0,0,cv.width,cv.height));ctx.clearRect(0,0,cv.width,cv.height);r.draw="";saveSoon()}}}));
-  s.append(tb,cv,h("h2",{textContent:"Pegs"}));
-  const box=h("div");
-  s.append(h("div",{className:"row"},
-    h("button",{textContent:"Add peg",on:{click:()=>{let n=1;const u=new Set(r.pegs.map(p=>p.num));while(u.has(n))n++;r.pegs.push({id:uid(),name:"",img:"",num:n,notes:""});pegs(r,box);saveSoon();renderPlan();const f=box.querySelector(".peg:last-child .nm");if(f)f.focus()}}}),
-    h("button",{textContent:"Sort by number",on:{click:()=>{r.pegs.sort((a,b)=>a.num-b.num);pegs(r,box);saveSoon()}}})),box);
-  pegs(r,box);
+  stage=h("div",{className:"stage"},cv);s.append(tb,stage,h("h2",{textContent:"Pegs"}));
+  const box=h("div");pegBox=box;curRoom=r;
+  s.append(h("div",{className:"row pegbar"},
+    h("button",{textContent:"Add peg",on:{click:()=>{let n=1;const u=new Set(r.pegs.map(p=>p.num));while(u.has(n))n++;r.pegs.push({id:uid(),name:"",img:"",num:n,notes:"",x:.5,y:.5,collapsed:false});pegs(r,box);markers();saveSoon();renderPlan();const f=box.querySelector(".peg:last-child .nm");if(f)f.focus()}}}),
+    h("button",{textContent:"Sort by number",on:{click:()=>{r.pegs.sort((a,b)=>a.num-b.num);pegs(r,box);saveSoon()}}}),
+    h("button",{textContent:"Expand all",on:{click:()=>setAll(r,box,false)}}),
+    h("button",{textContent:"Collapse all",on:{click:()=>setAll(r,box,true)}})),box);
+  pegs(r,box);markers();
 }
+function initCtx(){ctx=cv.getContext("2d");ctx.lineCap="round";ctx.lineJoin="round"}
+function sizeIn(label,r,k,lo,hi){
+  const i=h("input",{type:"number",min:lo,max:hi,step:10,value:r[k],on:{change:()=>{const v=clamp(Math.round(Number(i.value)),lo,hi)||r[k];i.value=v;r[k]=v;resize(r)}}});
+  return h("label",{},label,i)}
+function resize(r){
+  const el=$("#r"+r.id);
+  r.x=Math.min(r.x,PW-r.w/2);r.y=Math.min(r.y,PH-r.h/2);
+  if(el){el.style.width=r.w/2+"px";el.style.height=r.h/2+"px";el.style.left=r.x+"px";el.style.top=r.y+"px"}
+  if(cv&&sel===r.id){const t=h("canvas",{width:cv.width,height:cv.height});t.getContext("2d").drawImage(cv,0,0);cv.width=r.w*2;cv.height=r.h*2;initCtx();ctx.drawImage(t,0,0);undo=[];r.draw=cv.toDataURL()}
+  drawLinks();saveSoon();
+}
+function markers(){
+  if(!stage)return;stage.querySelectorAll(".mk").forEach(m=>m.remove());
+  curRoom.pegs.forEach(p=>{
+    const m=h("div",{className:"mk",textContent:p.num,title:(p.name||"Unnamed peg")+" (drag to move, click to open)"});
+    m.style.left=p.x*100+"%";m.style.top=p.y*100+"%";
+    m.addEventListener("pointerdown",ev=>{
+      if(ev.button)return;ev.preventDefault();m.setPointerCapture(ev.pointerId);
+      const sx=ev.clientX,sy=ev.clientY;let moved=false;
+      const mv=e=>{if(!moved&&Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy)>4)moved=true;if(!moved)return;
+        const b=cv.getBoundingClientRect();p.x=clamp((e.clientX-b.left)/b.width,0,1);p.y=clamp((e.clientY-b.top)/b.height,0,1);m.style.left=p.x*100+"%";m.style.top=p.y*100+"%"};
+      const up=()=>{m.removeEventListener("pointermove",mv);m.removeEventListener("pointerup",up);m.removeEventListener("pointercancel",up);moved?saveSoon():openPeg(p)};
+      m.addEventListener("pointermove",mv);m.addEventListener("pointerup",up);m.addEventListener("pointercancel",up)});
+    stage.append(m)});
+}
+function openPeg(p){
+  p.collapsed=false;pegs(curRoom,pegBox);saveSoon();
+  const c=pegBox.querySelector('[data-id="'+p.id+'"]');
+  if(c){c.scrollIntoView({block:"nearest",behavior:"smooth"});c.classList.add("hl");setTimeout(()=>c.classList.remove("hl"),1500)}
+}
+function setAll(r,box,v){r.pegs.forEach(p=>p.collapsed=v);pegs(r,box);saveSoon()}
 function setupCanvas(r){
-  cv=h("canvas",{width:560,height:340,className:"cv"});ctx=cv.getContext("2d");ctx.lineCap="round";ctx.lineJoin="round";undo=[];
-  if(r.draw){const i=new Image();i.onload=()=>ctx.drawImage(i,0,0);i.src=r.draw}
+  cv=h("canvas",{width:r.w*2,height:r.h*2,className:"cv"});initCtx();undo=[];
+  if(r.draw){const i=new Image(),c=ctx;i.onload=()=>c.drawImage(i,0,0);i.src=r.draw}
   let d=false,sx,sy,lx,ly,snap;
   const pt=e=>{const b=cv.getBoundingClientRect();return[(e.clientX-b.left)*cv.width/b.width,(e.clientY-b.top)*cv.height/b.height]};
   const style=()=>{ctx.strokeStyle=color;ctx.lineWidth=tool==="eraser"?size*3:size;ctx.globalCompositeOperation=tool==="eraser"?"destination-out":"source-over"};
@@ -225,7 +274,7 @@ function pegs(r,box){
   box.replaceChildren();let drag=-1;
   if(!r.pegs.length)box.append(h("p",{className:"empty",textContent:"No pegs in this room yet."}));
   r.pegs.forEach((p,i)=>{
-    const c=h("div",{className:"peg"});
+    const c=h("div",{className:"peg"+(p.collapsed?" closed":""),"data-id":p.id});
     const grip=h("span",{className:"grip",title:"Drag to reorder",textContent:"\u283F",on:{mousedown:()=>c.draggable=true}});
     c.addEventListener("dragstart",e=>{drag=i;e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",String(i))});
     c.addEventListener("dragend",()=>c.draggable=false);
@@ -235,13 +284,14 @@ function pegs(r,box){
       const v=Number(num.value);
       if(num.value===""||!Number.isInteger(v)||v<0){num.value=p.num;status("Peg numbers must be whole numbers, 0 or higher.",1);return}
       if(r.pegs.some(q=>q!==p&&q.num===v)){num.value=p.num;status("Peg number "+v+" is already used in this room.",1);return}
-      p.num=v;saveSoon()}}});
+      p.num=v;markers();saveSoon()}}});
+    const tog=h("button",{textContent:p.collapsed?"\u25B8":"\u25BE","aria-expanded":!p.collapsed,"aria-label":"Show or hide peg details",on:{click:()=>{p.collapsed=!p.collapsed;c.classList.toggle("closed",p.collapsed);tog.textContent=p.collapsed?"\u25B8":"\u25BE";tog.setAttribute("aria-expanded",!p.collapsed);saveSoon()}}});
     c.append(
-      h("div",{className:"top"},grip,num,
-        h("input",{className:"nm",value:p.name,placeholder:"Peg name",ariaLabel:"Peg name",on:{input:e=>{p.name=e.target.value;saveSoon()}}}),
-        h("button",{className:"danger",textContent:"Delete",ariaLabel:"Delete peg",on:{click:()=>{r.pegs.splice(i,1);pegs(r,box);saveSoon();renderPlan()}}})),
-      h("input",{value:p.img,placeholder:"Image descriptor (what to picture)",ariaLabel:"Image descriptor",on:{input:e=>{p.img=e.target.value;saveSoon()}}}),
-      h("textarea",{value:p.notes,placeholder:"Notes",ariaLabel:"Notes",on:{input:e=>{p.notes=e.target.value;saveSoon()}}}));
+      h("div",{className:"top"},grip,tog,num,
+        h("input",{className:"nm",value:p.name,placeholder:"Peg name",ariaLabel:"Peg name",on:{input:e=>{p.name=e.target.value;markers();saveSoon()}}}),
+        h("button",{className:"danger",textContent:"Delete",ariaLabel:"Delete peg",on:{click:()=>{r.pegs.splice(i,1);pegs(r,box);markers();saveSoon();renderPlan()}}})),
+      h("div",{className:"more"},h("input",{value:p.img,placeholder:"Image descriptor (what to picture)",ariaLabel:"Image descriptor",on:{input:e=>{p.img=e.target.value;saveSoon()}}}),
+      h("textarea",{value:p.notes,placeholder:"Notes",ariaLabel:"Notes",on:{input:e=>{p.notes=e.target.value;saveSoon()}}})));
     box.append(c);
   });
 }
