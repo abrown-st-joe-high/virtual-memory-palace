@@ -33,18 +33,21 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 440px}
 #plan{position:relative;width:1600px;height:1000px;background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:40px 40px;background-color:var(--paper)}
 #links{position:absolute;inset:0;pointer-events:none}
 #links line{stroke:var(--moss);stroke-width:4;stroke-linecap:round}
-.room{position:absolute;background:var(--card);border:2px solid var(--ink);border-radius:3px;padding:.4rem .6rem;cursor:grab;touch-action:none;user-select:none;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
-.room strong{font:700 1rem var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.room small{color:#55627a}
-.room.sel{border-color:var(--brass);box-shadow:0 0 0 3px rgba(154,123,47,.3)}
-.room.from{border-style:dashed;border-color:var(--moss)}
+.room{position:absolute;cursor:grab;touch-action:none;user-select:none}
+.room .rl{position:absolute;left:0;bottom:100%;margin-bottom:2px;max-width:220px;font:700 .9rem/1.2 var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room .rb{position:relative;width:100%;height:100%;background:var(--card);border:2px solid var(--ink);border-radius:3px;overflow:hidden}
+.room .rb img{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.room .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--brass);border:1px solid #fff}
+.room.sel .rb{border-color:var(--brass);box-shadow:0 0 0 3px rgba(154,123,47,.3)}
+.room.sel .rl{color:var(--brass)}
+.room.from .rb{border-style:dashed;border-color:var(--moss)}
 .connecting .room{cursor:crosshair}
 .emptyplan{position:absolute;left:40px;top:40px;color:#55627a}
 #side{overflow:auto;padding:1rem;background:#fff;min-height:0}
 #side h2{font:700 1.1rem var(--serif);margin:1.2rem 0 .5rem}
 .empty{color:#55627a}
 .row{display:flex;gap:.5rem;align-items:center}
-.cv{display:block;width:100%;height:auto;border:2px solid var(--ink);border-radius:3px;touch-action:none;cursor:crosshair;background-color:var(--paper);background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:28px 28px}
+.cv{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair;background-color:var(--paper);background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:28px 28px}
 .tools{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.5rem 0}
 .tools input[type=color]{width:2.4rem;padding:0;height:2rem}
 .tools input[type=range]{width:6rem;padding:0}
@@ -52,10 +55,11 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 440px}
 .peg .top{display:grid;grid-template-columns:auto auto 4.5rem 1fr auto;gap:.4rem;align-items:center}
 .grip{cursor:grab;font-size:1.3rem;padding:0 .2rem;user-select:none}
 .peg textarea{resize:vertical;min-height:3.2rem}
-.stage{position:relative}
+.stage{position:relative;border:2px solid var(--ink);border-radius:3px;box-sizing:content-box;flex:none}
+.stagewrap{overflow:auto;max-width:100%}
 .mk{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;background:var(--brass);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font:700 .75rem var(--sans);cursor:grab;touch-action:none;user-select:none}
 .mk:active{cursor:grabbing}
-.size{margin-top:.6rem}.size label{display:flex;gap:.4rem;align-items:center;flex:1}.size input{width:5rem}
+.size{margin-top:.6rem}.size label{display:flex;gap:.4rem;align-items:center;flex:1}.size input{width:5rem}.size select{width:5.5rem}
 .pegbar{flex-wrap:wrap}
 .peg .more{display:grid;gap:.4rem}.peg.closed .more{display:none}
 .peg .top button:not(.danger){padding:.2rem .5rem}
@@ -75,7 +79,6 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 440px}
 .pegbar{margin-top:.4rem}
 #side.full{position:fixed;inset:0;z-index:50;display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:1.5rem;padding:1rem 1.5rem;overflow:hidden;align-items:start;background:#fff}
 #side.full .sk,#side.full .pg{max-height:calc(100vh - 2rem);overflow:auto;padding-right:.3rem}
-#side.full .stage{width:min(100%,max(240px,calc((100vh - 20rem)*var(--ar))))}
 @media(max-width:860px){#side.full{grid-template-columns:1fr;overflow:auto}#side.full .sk,#side.full .pg{max-height:none;overflow:visible}main{grid-template-columns:1fr;grid-template-rows:55vh auto;overflow:auto}#planwrap{border-right:0;border-bottom:1px solid var(--rule)}header input,header select{width:9rem}#status{margin-left:0;width:100%}}
 </style>
 </head>
@@ -115,7 +118,7 @@ let palaces={};try{palaces=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){}
 const mk=n=>({id:uid(),name:n||"Untitled palace",rooms:[],links:[]});
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 function norm(r){
-  r.w=clamp(+r.w||280,160,600);r.h=clamp(+r.h||170,100,400);r.pegs=r.pegs||[];
+  r.w=clamp(+r.w||280,160,600);r.h=clamp(+r.h||170,100,400);r.pegs=r.pegs||[];r.x=Math.max(0,+r.x||0);r.y=Math.max(22,+r.y||0);
   const f=v=>(v==null||v===""||!Number.isFinite(+v))?.5:clamp(+v,0,1);
   r.pegs.forEach(p=>{p.id=p.id||uid();p.x=f(p.x);p.y=f(p.y);p.collapsed=!!p.collapsed});
   return r}
@@ -126,7 +129,7 @@ const plan=$("#plan"),svg=$("#links");
 const room=id=>P.rooms.find(r=>r.id===id);
 
 function status(m,err){const s=$("#status");s.textContent=m;s.className=err?"err":""}
-function save(){clearTimeout(timer);palaces[P.id]=P;try{localStorage.setItem(KEY,JSON.stringify(palaces));localStorage.setItem(CUR,P.id);status("Saved in this browser")}catch(e){status("Browser storage is full. Download this palace to keep it.",1)}}
+function save(){clearTimeout(timer);if(curRoom)thumb(curRoom);palaces[P.id]=P;try{localStorage.setItem(KEY,JSON.stringify(palaces));localStorage.setItem(CUR,P.id);status("Saved in this browser")}catch(e){status("Browser storage is full. Download this palace to keep it.",1)}}
 function saveSoon(){clearTimeout(timer);timer=setTimeout(save,300)}
 
 /* palace bar */
@@ -166,13 +169,18 @@ function renderPlan(){
   plan.querySelectorAll(".room,.emptyplan").forEach(e=>e.remove());
   if(!P.rooms.length)plan.append(h("p",{className:"emptyplan",textContent:"No rooms yet. Choose Add room to place the first one."}));
   P.rooms.forEach(r=>{
-    const e=h("div",{id:"r"+r.id,tabIndex:0},h("strong",{textContent:r.name||"Unnamed room"}),h("small",{textContent:r.pegs.length+(r.pegs.length===1?" peg":" pegs")}));
+    const e=h("div",{id:"r"+r.id,tabIndex:0},h("div",{className:"rl",textContent:r.name||"Unnamed room"}),h("div",{className:"rb"}));
     e.style.left=r.x+"px";e.style.top=r.y+"px";e.style.width=r.w/2+"px";e.style.height=r.h/2+"px";
     e.addEventListener("pointerdown",ev=>down(ev,r,e));
     e.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();connecting?pick(r):choose(r.id)}});
-    plan.append(e);
+    plan.append(e);thumb(r);
   });
   mark();drawLinks();
+}
+function thumb(r){
+  const e=$("#r"+r.id+" .rb");if(!e)return;e.replaceChildren();
+  if(r.draw)e.append(h("img",{src:r.draw,alt:""}));
+  r.pegs.forEach(p=>{const d=h("div",{className:"dot"});d.style.left=p.x*100+"%";d.style.top=p.y*100+"%";e.append(d)});
 }
 function mark(){P.rooms.forEach(r=>{const e=$("#r"+r.id);if(e)e.className="room"+(r.id===sel?" sel":"")+(r.id===connectFrom?" from":"")})}
 function drawLinks(){
@@ -187,7 +195,7 @@ function down(ev,r,e){
   if(connecting){pick(r);return}
   choose(r.id);
   const sx=ev.clientX,sy=ev.clientY,ox=r.x,oy=r.y;e.setPointerCapture(ev.pointerId);
-  const mv=m=>{r.x=Math.max(0,Math.min(PW-r.w/2,ox+m.clientX-sx));r.y=Math.max(0,Math.min(PH-r.h/2,oy+m.clientY-sy));e.style.left=r.x+"px";e.style.top=r.y+"px";drawLinks()};
+  const mv=m=>{r.x=Math.max(0,Math.min(PW-r.w/2,ox+m.clientX-sx));r.y=Math.max(22,Math.min(PH-r.h/2,oy+m.clientY-sy));e.style.left=r.x+"px";e.style.top=r.y+"px";drawLinks()};
   const up=()=>{e.removeEventListener("pointermove",mv);e.removeEventListener("pointerup",up);e.removeEventListener("pointercancel",up);saveSoon()};
   e.addEventListener("pointermove",mv);e.addEventListener("pointerup",up);e.addEventListener("pointercancel",up);
 }
@@ -211,22 +219,22 @@ $("#addRoom").onclick=()=>{
 /* side panel */
 const LS=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return Array.isArray(v)?v.filter(c=>/^#[0-9a-f]{6}$/i.test(c)):d}catch(e){return d}};
 const COMMON=["#000000","#ffffff","#808080","#d62828","#f77f00","#fcbf49","#2a9d4f","#1b9aaa","#1d4ed8","#7b2cbf","#e75480","#7a4a21"];
-let recent=LS("vmp.recent",[]),favs=LS("vmp.fav",[]),full=false,selPeg=null,selBox,swBox,colorIn,favBtn,dragIdx=-1;
+let recent=LS("vmp.recent",[]),favs=LS("vmp.fav",[]),full=false,zoom=1,selPeg=null,selBox,swBox,colorIn,favBtn,dragIdx=-1;
 const keep=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 
 function renderSide(){
   const s=$("#side");s.replaceChildren();cv=stage=pegBox=curRoom=selBox=swBox=colorIn=favBtn=null;
   const r=room(sel);
-  if(!r){full=false;s.classList.remove("full");s.append(h("p",{className:"empty",textContent:"Select a room on the plan to edit it, or add a room to begin."}));return}
+  if(!r){full=false;zoom=1;s.classList.remove("full");s.append(h("p",{className:"empty",textContent:"Select a room on the plan to edit it, or add a room to begin."}));return}
   s.classList.toggle("full",full);curRoom=r;
   if(!r.pegs.some(p=>p.id===selPeg))selPeg=null;
   const L=h("div",{className:"sk"}),R=h("div",{className:"pg"});
   L.append(
     h("div",{className:"row"},
-      h("input",{id:"roomName",value:r.name,ariaLabel:"Room name",on:{input:e=>{r.name=e.target.value;const t=$("#r"+r.id+" strong");if(t)t.textContent=r.name||"Unnamed room";saveSoon()}}}),
-      h("button",{textContent:full?"Exit full window":"Full window",style:"white-space:nowrap",on:{click:()=>{full=!full;renderSide()}}}),
+      h("input",{id:"roomName",value:r.name,ariaLabel:"Room name",on:{input:e=>{r.name=e.target.value;const t=$("#r"+r.id+" .rl");if(t)t.textContent=r.name||"Unnamed room";saveSoon()}}}),
+      h("button",{textContent:full?"Exit full window":"Full window",style:"white-space:nowrap",on:{click:()=>{full=!full;zoom=full?2:1;renderSide()}}}),
       h("button",{className:"danger",textContent:"Delete room",style:"white-space:nowrap",on:{click:()=>{if(!confirm("Delete "+(r.name||"this room")+" and its pegs?"))return;P.rooms=P.rooms.filter(x=>x!==r);P.links=P.links.filter(l=>!l.includes(r.id));sel=null;connectFrom=null;renderPlan();renderSide();save()}}})),
-    h("div",{className:"row size"},sizeIn("Width",r,"w",160,600),sizeIn("Height",r,"h",100,400)),
+    h("div",{className:"row size"},sizeIn("Width",r,"w",160,600),sizeIn("Height",r,"h",100,400),h("label",{},"Zoom",h("select",{ariaLabel:"Zoom",on:{change:e=>{zoom=+e.target.value;if(stage)stage.style.width=r.w*zoom+"px"}}},...[1,1.5,2,3].map(z=>h("option",{value:z,textContent:z*100+"%",selected:z===zoom}))))),
     h("h2",{textContent:"Room sketch"}));
   setupCanvas(r);
   const tb=h("div",{className:"tools"});
@@ -238,8 +246,8 @@ function renderSide(){
   favBtn=h("button",{on:{click:toggleFav}});
   const cr=h("div",{className:"tools"},colorIn,favBtn,h("label",{},"Size",h("input",{type:"range",min:1,max:24,value:size,on:{input:e=>size=+e.target.value}})));
   swBox=h("div",{className:"swatches"});
-  stage=h("div",{className:"stage"},cv);stage.style.setProperty("--ar",r.w/r.h);
-  L.append(tb,cr,swBox,stage);
+  stage=h("div",{className:"stage"},cv);stage.style.width=r.w*zoom+"px";
+  L.append(tb,cr,swBox,h("div",{className:"stagewrap"},stage));
   selBox=h("div",{className:"selpeg"});pegBox=h("div");
   R.append(h("h2",{textContent:"Pegs"}),
     h("div",{className:"row"},h("button",{textContent:"Add peg",on:{click:addPeg}})),
@@ -252,7 +260,7 @@ function renderSide(){
   s.append(L,R);
   swatches();renderSel();pegs(r);markers();
 }
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&full){full=false;renderSide()}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&full){full=false;zoom=1;renderSide()}});
 
 /* colors */
 function setColor(c){color=c;if(colorIn)colorIn.value=c;swatches()}
@@ -268,13 +276,13 @@ function swatches(){
 /* sketch */
 function initCtx(){ctx=cv.getContext("2d");ctx.lineCap="round";ctx.lineJoin="round"}
 function sizeIn(label,r,k,lo,hi){
-  const i=h("input",{type:"number",min:lo,max:hi,step:10,value:r[k],on:{change:()=>{const v=clamp(Math.round(Number(i.value)),lo,hi)||r[k];i.value=v;r[k]=v;resize(r)}}});
+  const i=h("input",{type:"number",min:lo,max:hi,step:10,value:r[k],on:{change:()=>{const v=clamp(Math.round(Number(i.value)),lo,hi)||r[k],ow=r.w,oh=r.h;i.value=v;r[k]=v;resize(r,ow,oh)}}});
   return h("label",{},label,i)}
-function resize(r){
-  const el=$("#r"+r.id);
+function resize(r,ow,oh){
+  const el=$("#r"+r.id);r.pegs.forEach(p=>{p.x=clamp(p.x*ow/r.w,0,1);p.y=clamp(p.y*oh/r.h,0,1)});
   r.x=Math.min(r.x,PW-r.w/2);r.y=Math.min(r.y,PH-r.h/2);
   if(el){el.style.width=r.w/2+"px";el.style.height=r.h/2+"px";el.style.left=r.x+"px";el.style.top=r.y+"px"}
-  if(cv&&sel===r.id){const t=h("canvas",{width:cv.width,height:cv.height});t.getContext("2d").drawImage(cv,0,0);cv.width=r.w*2;cv.height=r.h*2;initCtx();ctx.drawImage(t,0,0);undo=[];r.draw=cv.toDataURL();if(stage)stage.style.setProperty("--ar",r.w/r.h)}
+  if(cv&&sel===r.id){const t=h("canvas",{width:cv.width,height:cv.height});t.getContext("2d").drawImage(cv,0,0);cv.width=r.w*2;cv.height=r.h*2;initCtx();ctx.drawImage(t,0,0);undo=[];r.draw=cv.toDataURL();if(stage){stage.style.width=r.w*zoom+"px";markers()}}
   drawLinks();saveSoon();
 }
 function doFill(r,pos){
@@ -361,7 +369,8 @@ function pegFields(p,r){
   num.onchange=()=>{
     const v=Number(num.value);
     if(num.value===""||!Number.isInteger(v)||v<0){num.value=p.num;status("Peg numbers must be whole numbers, 0 or higher.",1);return}
-    if(r.pegs.some(q=>q!==p&&q.num===v)){num.value=p.num;status("Peg number "+v+" is already used in this room.",1);return}
+    const o=r.pegs.find(q=>q!==p&&q.num===v),old=p.num;
+    if(o){o.num=old;sync(o,null);status("Swapped numbers: "+(o.name||"the other peg")+" is now "+old+".")}
     p.num=v;sync(p,num);markers();saveSoon()};
   name.oninput=()=>{p.name=name.value;sync(p,name);markers();saveSoon()};
   img.oninput=()=>{p.img=img.value;sync(p,img);saveSoon()};
